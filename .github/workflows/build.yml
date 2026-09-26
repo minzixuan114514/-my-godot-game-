@@ -56,6 +56,12 @@ jobs:
             'export/android/shutdown_adb_on_exit = true' \
             > /root/.config/godot/editor_settings-4.3.tres
 
+      - name: Enable ETC2/ASTC texture compression (fixes blank configuration errors bug)
+        run: |
+          cd project/godot-upload
+          sed -i '/^\[rendering\]/a textures/vram_compression/import_etc2_astc=true' project.godot
+          grep -A2 '\[rendering\]' project.godot
+
       - name: Write export presets
         run: |
           cd project/godot-upload
