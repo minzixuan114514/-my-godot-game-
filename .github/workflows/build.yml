@@ -15,8 +15,7 @@ jobs:
       - name: Unzip project
         run: |
           mkdir -p project
-          cd project
-          unzip -q "$GITHUB_WORKSPACE/godot-upload.zip"
+          unzip -q "$GITHUB_WORKSPACE/godot-upload.zip" -d project
           ls -la project/godot-upload
 
       - name: Write export presets
