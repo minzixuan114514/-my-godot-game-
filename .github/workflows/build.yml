@@ -46,7 +46,7 @@ jobs:
           cat export_presets.cfg
 
       - name: Export APK (community action, handles SDK + keystore)
-        uses: dulvui/godot-android-export@v2
+        uses: dulvui/godot-android-export@main
         with:
           godot-version: 4.3
           working-directory: project/godot-upload
