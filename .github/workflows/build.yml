@@ -8,6 +8,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    container:
+      image: barichello/godot-ci:4.3
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -41,24 +43,22 @@ jobs:
             'package/name="GunStorm3D"' \
             'package/signed=true' \
             'screen/immersive_mode=true' \
+            'keystore/debug="/root/android/debug.keystore"' \
+            'keystore/debug_user="androiddebugkey"' \
+            'keystore/debug_password="android"' \
             > export_presets.cfg
           cat export_presets.cfg
 
-      - name: Export APK (community action, handles SDK + keystore)
-        uses: dulvui/godot-android-export@main
-        with:
-          godot-version: 4.3
-          working-directory: project/godot-upload
-
-      - name: List output files
-        if: always()
+      - name: Export APK
         run: |
-          ls -la project/godot-upload
-          find project -name "*.apk" -o -name "*.aab" 2>/dev/null
+          cd project/godot-upload
+          godot --headless --export-debug "Android" build.apk
+          ls -la
+          test -f build.apk && echo "APK_OK size: $(stat -c%s build.apk)" || (echo "APK_MISSING" && exit 1)
 
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: GunStorm3D-APK
-          path: project/godot-upload/**/*.apk
+          path: project/godot-upload/build.apk
