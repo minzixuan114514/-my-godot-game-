@@ -7,6 +7,7 @@ on:
 
 env:
   PROJECT: /tmp/project/godot-upload
+  GODOT: /tmp/godot/Godot_v4.3-stable_linux.x86_64
 
 jobs:
   build:
@@ -26,7 +27,7 @@ jobs:
         run: |
           wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_linux.x86_64.zip -O /tmp/godot.zip
           unzip -q /tmp/godot.zip -d /tmp/godot
-          chmod +x /tmp/godot/Godot_v4.3-stable_linux.x86_64
+          chmod +x $GODOT
 
       - name: Install export templates
         run: |
@@ -36,6 +37,21 @@ jobs:
           unzip -q templates.tpz
           mv /tmp/templates ~/.local/share/godot/export_templates/4.3.stable
           ls ~/.local/share/godot/export_templates/4.3.stable | head -5
+
+      - name: Install JDK and Android SDK
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq openjdk-17-jdk-headless
+          mkdir -p $HOME/android-sdk/cmdline-tools
+          cd $HOME/android-sdk/cmdline-tools
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
+          unzip -q tools.zip
+          mv cmdline-tools latest
+          export ANDROID_HOME=$HOME/android-sdk
+          yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34" > /dev/null 2>&1
+          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
+          echo "JAVA_HOME=$(dirname $(dirname $(readlink -f $(which java))))" >> $GITHUB_ENV
 
       - name: Create debug keystore
         run: |
@@ -71,22 +87,26 @@ jobs:
           keystore/release_user="androiddebugkey"
           keystore/release_password="android"
           EOF
-          cat export_presets.cfg
 
       - name: Import project
         run: |
           cd $PROJECT
-          /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --import .
+          $GODOT --headless --import .
 
       - name: Export APK
         run: |
           cd $PROJECT
-          set +e
-          /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --verbose --export-debug "Android" build.apk > /tmp/export_log.txt 2>&1
-          echo "=== FULL EXPORT LOG ==="
-          cat /tmp/export_log.txt
-          echo "=== END ==="
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.3.cfg << 'EOF'
+          export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"
+          export/android/android_sdk_path = "/home/runner/android-sdk"
+          export/android/debug_keystore = "/tmp/project/godot-upload/debug.keystore"
+          export/android/debug_keystore_user = "androiddebugkey"
+          export/android/debug_keystore_pass = "android"
+          EOF
+          $GODOT --headless --export-debug "Android" build.apk 2>&1 || true
           ls -la $PROJECT
+          test -f $PROJECT/build.apk && echo "APK_OK size: $(stat -c%s $PROJECT/build.apk)" || (echo "APK_MISSING" && exit 1)
 
       - name: Upload APK
         if: always()
