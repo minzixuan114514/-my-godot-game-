@@ -81,10 +81,15 @@ jobs:
       - name: Export APK
         run: |
           cd $PROJECT
-          /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --export-debug "Android" build.apk
+          set +e
+          /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --verbose --export-debug "Android" build.apk > /tmp/export_log.txt 2>&1
+          echo "=== FULL EXPORT LOG ==="
+          cat /tmp/export_log.txt
+          echo "=== END ==="
           ls -la $PROJECT
 
       - name: Upload APK
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: GunStorm3D-APK
