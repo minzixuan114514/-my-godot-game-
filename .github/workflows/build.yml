@@ -41,17 +41,14 @@ jobs:
       - name: Install JDK and Android SDK
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq openjdk-17-jdk-headless
+          sudo apt-get install -y -qq openjdk-17-jdk-headless adb
           mkdir -p $HOME/android-sdk/cmdline-tools
           cd $HOME/android-sdk/cmdline-tools
           wget -q https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip -O tools.zip
           unzip -q tools.zip
           mv cmdline-tools latest
           yes | $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
-          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;34.0.0" "platforms;android-34" > /dev/null 2>&1
-          ls $HOME/android-sdk
-          echo "ANDROID_HOME=$HOME/android-sdk" >> $GITHUB_ENV
-          echo "JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64" >> $GITHUB_ENV
+          $HOME/android-sdk/cmdline-tools/latest/bin/sdkmanager "platform-tools" "build-tools;33.0.2" "platforms;android-33" > /dev/null 2>&1
           echo "$HOME/android-sdk/platform-tools" >> $GITHUB_PATH
 
       - name: Create debug keystore
@@ -67,26 +64,35 @@ jobs:
             'name="Android"' \
             'platform="Android"' \
             'runnable=true' \
+            'advanced_options=false' \
+            'dedicated_server=false' \
             'export_filter="all_resources"' \
             'include_filter=""' \
             'exclude_filter=""' \
             'export_path="build.apk"' \
+            'script_export_mode=2' \
             '' \
             '[preset.0.options]' \
+            'custom_template/debug=""' \
+            'custom_template/release=""' \
             'gradle_build/use_gradle_build=false' \
-            'package/unique_name="com.gunstorm.game"' \
-            'package/name="GunStorm3D"' \
+            'gradle_build/gradle_build_directory=""' \
+            'gradle_build/android_source_template=""' \
+            'gradle_build/compress_native_libraries=false' \
+            'gradle_build/export_format=0' \
+            'gradle_build/min_sdk=""' \
+            'gradle_build/target_sdk=""' \
+            'architectures/armeabi-v7a=true' \
+            'architectures/arm64-v8a=true' \
+            'architectures/x86=false' \
+            'architectures/x86_64=false' \
             'version/code=1' \
             'version/name="1.0"' \
+            'package/unique_name="com.gunstorm.game"' \
+            'package/name="GunStorm3D"' \
+            'package/signed=true' \
+            'package/app_category=2' \
             'screen/immersive_mode=true' \
-            'architecture/arm64-v8a=true' \
-            'architecture/armeabi-v7a=true' \
-            'keystore/debug="debug.keystore"' \
-            'keystore/debug_user="androiddebugkey"' \
-            'keystore/debug_password="android"' \
-            'keystore/release="debug.keystore"' \
-            'keystore/release_user="androiddebugkey"' \
-            'keystore/release_password="android"' \
             > export_presets.cfg
           cat export_presets.cfg
 
@@ -94,16 +100,19 @@ jobs:
         run: |
           mkdir -p ~/.config/godot
           printf '%s\n' \
-            '[export]' \
-            'android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' \
-            'android/android_sdk_path = "'"$HOME"'/android-sdk"' \
-            'android/adb = "'"$HOME"'/android-sdk/platform-tools/adb"' \
-            'android/debug_keystore = "/tmp/project/godot-upload/debug.keystore"' \
-            'android/debug_keystore_user = "androiddebugkey"' \
-            'android/debug_keystore_pass = "android"' \
-            > ~/.config/godot/editor_settings-4.3.cfg
-          echo "---- editor settings ----"
-          cat ~/.config/godot/editor_settings-4.3.cfg
+            '[gd_resource type="EditorSettings" format=3]' \
+            '' \
+            '[resource]' \
+            'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' \
+            'export/android/android_sdk_path = "'"$HOME"'/android-sdk"' \
+            'export/android/debug_keystore = "/tmp/project/godot-upload/debug.keystore"' \
+            'export/android/debug_keystore_user = "androiddebugkey"' \
+            'export/android/debug_keystore_pass = "android"' \
+            'export/android/force_system_user = false' \
+            'export/android/shutdown_adb_on_exit = true' \
+            > ~/.config/godot/editor_settings-4.3.tres
+          echo "---- editor settings file ----"
+          cat ~/.config/godot/editor_settings-4.3.tres
 
       - name: Import project
         run: |
@@ -113,11 +122,7 @@ jobs:
       - name: Export APK
         run: |
           cd $PROJECT
-          set +e
-          $GODOT --headless --verbose --export-debug "Android" build.apk > /tmp/export_log.txt 2>&1
-          echo "=== FULL EXPORT LOG ==="
-          cat /tmp/export_log.txt
-          echo "=== END ==="
+          $GODOT --headless --verbose --export-debug "Android" build.apk 2>&1 | tee /tmp/export_log.txt
           ls -la $PROJECT
           test -f $PROJECT/build.apk && echo "APK_OK size: $(stat -c%s $PROJECT/build.apk)" || (echo "APK_MISSING" && exit 1)
 
@@ -127,3 +132,10 @@ jobs:
         with:
           name: GunStorm3D-APK
           path: /tmp/project/godot-upload/build.apk
+
+      - name: Upload export log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: export-log
+          path: /tmp/export_log.txt
