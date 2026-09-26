@@ -20,7 +20,6 @@ jobs:
           mkdir /tmp/project
           cd /tmp/project
           unzip -q "$GITHUB_WORKSPACE/godot-upload.zip"
-          ls -la /tmp/project
           ls -la $PROJECT
 
       - name: Install Godot 4.3
@@ -35,9 +34,13 @@ jobs:
           mkdir -p ~/.local/share/godot/export_templates
           cd /tmp
           unzip -q templates.tpz
-          ls /tmp/templates | head -5
           mv /tmp/templates ~/.local/share/godot/export_templates/4.3.stable
           ls ~/.local/share/godot/export_templates/4.3.stable | head -5
+
+      - name: Create debug keystore
+        run: |
+          cd $PROJECT
+          keytool -genkeypair -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
 
       - name: Write export presets
         run: |
@@ -61,6 +64,12 @@ jobs:
           screen/immersive_mode=true
           architecture/arm64-v8a=true
           architecture/armeabi-v7a=true
+          keystore/debug="debug.keystore"
+          keystore/debug_user="androiddebugkey"
+          keystore/debug_password="android"
+          keystore/release="debug.keystore"
+          keystore/release_user="androiddebugkey"
+          keystore/release_password="android"
           EOF
           cat export_presets.cfg
 
@@ -68,13 +77,11 @@ jobs:
         run: |
           cd $PROJECT
           /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --import .
-          echo "import exit code: $?"
 
       - name: Export APK
         run: |
           cd $PROJECT
           /tmp/godot/Godot_v4.3-stable_linux.x86_64 --headless --export-debug "Android" build.apk
-          echo "export exit code: $?"
           ls -la $PROJECT
 
       - name: Upload APK
