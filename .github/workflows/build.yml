@@ -12,6 +12,7 @@ jobs:
       image: barichello/godot-ci:4.3
     env:
       HOME: /root
+      ANDROID_HOME: /usr/lib/android-sdk
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -22,17 +23,16 @@ jobs:
           unzip -q "$GITHUB_WORKSPACE/godot-upload.zip" -d project
           ls -la project/godot-upload
 
-      - name: Inspect image environment
+      - name: Install SDK 34 components
         run: |
-          echo "HOME=$HOME"
-          ls /root/.local/share/godot/export_templates/ 2>/dev/null || echo "no templates dir"
-          ls /usr/lib/android-sdk 2>/dev/null || echo "no sdk"
-          ls /root/debug.keystore 2>/dev/null || echo "no keystore"
+          yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
+          $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" "platforms;android-34" > /dev/null
+          ls $ANDROID_HOME/build-tools
+          ls $ANDROID_HOME/platforms
 
       - name: Ensure export templates
         run: |
           if [ ! -f /root/.local/share/godot/export_templates/4.3.stable/android_debug.apk ]; then
-            echo "Templates missing, downloading..."
             wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz -O /tmp/tpz.tpz
             mkdir -p /root/.local/share/godot/export_templates
             cd /tmp && unzip -o -q tpz.tpz
@@ -55,7 +55,6 @@ jobs:
             'export/android/force_system_user = false' \
             'export/android/shutdown_adb_on_exit = true' \
             > /root/.config/godot/editor_settings-4.3.tres
-          cat /root/.config/godot/editor_settings-4.3.tres
 
       - name: Write export presets
         run: |
@@ -72,6 +71,8 @@ jobs:
             '' \
             '[preset.0.options]' \
             'gradle_build/use_gradle_build=false' \
+            'gradle_build/min_sdk="21"' \
+            'gradle_build/target_sdk="34"' \
             'architectures/armeabi-v7a=true' \
             'architectures/arm64-v8a=true' \
             'version/code=1' \
@@ -84,7 +85,6 @@ jobs:
             'keystore/debug_user="androiddebugkey"' \
             'keystore/debug_password="android"' \
             > export_presets.cfg
-          cat export_presets.cfg
 
       - name: Export APK
         run: |
