@@ -49,11 +49,16 @@ jobs:
         with:
           godot-version: 4.3
           working-directory: project/godot-upload
-          output-file: project/godot-upload/build.apk
+
+      - name: List output files
+        if: always()
+        run: |
+          ls -la project/godot-upload
+          find project -name "*.apk" -o -name "*.aab" 2>/dev/null
 
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: GunStorm3D-APK
-          path: project/godot-upload/build.apk
+          path: project/godot-upload/**/*.apk
