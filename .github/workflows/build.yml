@@ -20,6 +20,25 @@ jobs:
           unzip -q "$GITHUB_WORKSPACE/godot-upload.zip" -d project
           ls -la project/godot-upload
 
+      - name: Install Android export templates
+        run: |
+          godot --version
+          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz -O /tmp/tpz.tpz
+          mkdir -p /github/home/.local/share/godot/export_templates
+          cd /tmp && unzip -o -q tpz.tpz
+          mv /tmp/templates /github/home/.local/share/godot/export_templates/4.3.stable
+          ls /github/home/.local/share/godot/export_templates/4.3.stable | head
+
+      - name: Install JDK
+        run: |
+          apt-get update -qq > /dev/null 2>&1 || true
+          apt-get install -y -qq openjdk-17-jdk-headless > /dev/null 2>&1
+          ls /usr/lib/jvm/
+
+      - name: Create debug keystore
+        run: |
+          keytool -genkeypair -v -keystore /tmp/debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+
       - name: Write export presets
         run: |
           cd project/godot-upload
@@ -43,11 +62,22 @@ jobs:
             'package/name="GunStorm3D"' \
             'package/signed=true' \
             'screen/immersive_mode=true' \
-            'keystore/debug="/root/android/debug.keystore"' \
+            'keystore/debug="/tmp/debug.keystore"' \
             'keystore/debug_user="androiddebugkey"' \
             'keystore/debug_password="android"' \
             > export_presets.cfg
           cat export_presets.cfg
+
+      - name: Write editor settings
+        run: |
+          mkdir -p /github/home/.config/godot
+          printf '%s\n' \
+            '[gd_resource type="EditorSettings" format=3]' \
+            '' \
+            '[resource]' \
+            'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' \
+            > /github/home/.config/godot/editor_settings-4.3.tres
+          cat /github/home/.config/godot/editor_settings-4.3.tres
 
       - name: Export APK
         run: |
