@@ -27,8 +27,8 @@ jobs:
         run: |
           yes | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager --licenses > /dev/null 2>&1 || true
           $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;34.0.0" "platforms;android-34" > /dev/null
-          ls $ANDROID_HOME/build-tools
-          ls $ANDROID_HOME/platforms
+          echo "--- build-tools:"; ls $ANDROID_HOME/build-tools
+          echo "--- platforms:"; ls $ANDROID_HOME/platforms
 
       - name: Ensure export templates
         run: |
@@ -38,7 +38,7 @@ jobs:
             cd /tmp && unzip -o -q tpz.tpz
             mv /tmp/templates /root/.local/share/godot/export_templates/4.3.stable
           fi
-          ls /root/.local/share/godot/export_templates/4.3.stable | head -5
+          echo "--- templates:"; ls /root/.local/share/godot/export_templates/4.3.stable
 
       - name: Write editor settings
         run: |
@@ -56,11 +56,11 @@ jobs:
             'export/android/shutdown_adb_on_exit = true' \
             > /root/.config/godot/editor_settings-4.3.tres
 
-      - name: Enable ETC2/ASTC texture compression (fixes blank configuration errors bug)
+      - name: Enable ETC2/ASTC texture compression
         run: |
           cd project/godot-upload
           sed -i '/^\[rendering\]/a textures/vram_compression/import_etc2_astc=true' project.godot
-          grep -A2 '\[rendering\]' project.godot
+          echo "--- after sed:"; grep -B1 -A3 'rendering' project.godot
 
       - name: Write export presets
         run: |
@@ -77,8 +77,6 @@ jobs:
             '' \
             '[preset.0.options]' \
             'gradle_build/use_gradle_build=false' \
-            'gradle_build/min_sdk="21"' \
-            'gradle_build/target_sdk="34"' \
             'architectures/armeabi-v7a=true' \
             'architectures/arm64-v8a=true' \
             'version/code=1' \
@@ -92,16 +90,18 @@ jobs:
             'keystore/debug_password="android"' \
             > export_presets.cfg
 
-      - name: Export APK
+      - name: Export APK (verbose)
         run: |
           cd project/godot-upload
-          godot --headless --export-debug "Android" build.apk
+          godot --headless --verbose --export-debug "Android" build.apk 2>&1 | tee export_log.txt
           ls -la
-          test -f build.apk && echo "APK_OK size: $(stat -c%s build.apk)" || (echo "APK_MISSING" && exit 1)
+          test -f build.apk && echo "APK_OK size: $(stat -c%s build.apk)"
 
       - name: Upload APK
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: GunStorm3D-APK
-          path: project/godot-upload/build.apk
+          path: |
+            project/godot-upload/build.apk
+            project/godot-upload/export_log.txt
