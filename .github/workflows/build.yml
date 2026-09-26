@@ -10,6 +10,8 @@ jobs:
     runs-on: ubuntu-latest
     container:
       image: barichello/godot-ci:4.3
+    env:
+      HOME: /root
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -20,24 +22,40 @@ jobs:
           unzip -q "$GITHUB_WORKSPACE/godot-upload.zip" -d project
           ls -la project/godot-upload
 
-      - name: Install Android export templates
+      - name: Inspect image environment
         run: |
-          godot --version
-          wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz -O /tmp/tpz.tpz
-          mkdir -p /github/home/.local/share/godot/export_templates
-          cd /tmp && unzip -o -q tpz.tpz
-          mv /tmp/templates /github/home/.local/share/godot/export_templates/4.3.stable
-          ls /github/home/.local/share/godot/export_templates/4.3.stable | head
+          echo "HOME=$HOME"
+          ls /root/.local/share/godot/export_templates/ 2>/dev/null || echo "no templates dir"
+          ls /usr/lib/android-sdk 2>/dev/null || echo "no sdk"
+          ls /root/debug.keystore 2>/dev/null || echo "no keystore"
 
-      - name: Install JDK
+      - name: Ensure export templates
         run: |
-          apt-get update -qq > /dev/null 2>&1 || true
-          apt-get install -y -qq openjdk-17-jdk-headless > /dev/null 2>&1
-          ls /usr/lib/jvm/
+          if [ ! -f /root/.local/share/godot/export_templates/4.3.stable/android_debug.apk ]; then
+            echo "Templates missing, downloading..."
+            wget -q https://github.com/godotengine/godot/releases/download/4.3-stable/Godot_v4.3-stable_export_templates.tpz -O /tmp/tpz.tpz
+            mkdir -p /root/.local/share/godot/export_templates
+            cd /tmp && unzip -o -q tpz.tpz
+            mv /tmp/templates /root/.local/share/godot/export_templates/4.3.stable
+          fi
+          ls /root/.local/share/godot/export_templates/4.3.stable | head -5
 
-      - name: Create debug keystore
+      - name: Write editor settings
         run: |
-          keytool -genkeypair -v -keystore /tmp/debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+          mkdir -p /root/.config/godot
+          printf '%s\n' \
+            '[gd_resource type="EditorSettings" format=3]' \
+            '' \
+            '[resource]' \
+            'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' \
+            'export/android/android_sdk_path = "/usr/lib/android-sdk"' \
+            'export/android/debug_keystore = "/root/debug.keystore"' \
+            'export/android/debug_keystore_user = "androiddebugkey"' \
+            'export/android/debug_keystore_pass = "android"' \
+            'export/android/force_system_user = false' \
+            'export/android/shutdown_adb_on_exit = true' \
+            > /root/.config/godot/editor_settings-4.3.tres
+          cat /root/.config/godot/editor_settings-4.3.tres
 
       - name: Write export presets
         run: |
@@ -62,22 +80,11 @@ jobs:
             'package/name="GunStorm3D"' \
             'package/signed=true' \
             'screen/immersive_mode=true' \
-            'keystore/debug="/tmp/debug.keystore"' \
+            'keystore/debug="/root/debug.keystore"' \
             'keystore/debug_user="androiddebugkey"' \
             'keystore/debug_password="android"' \
             > export_presets.cfg
           cat export_presets.cfg
-
-      - name: Write editor settings
-        run: |
-          mkdir -p /github/home/.config/godot
-          printf '%s\n' \
-            '[gd_resource type="EditorSettings" format=3]' \
-            '' \
-            '[resource]' \
-            'export/android/java_sdk_path = "/usr/lib/jvm/java-17-openjdk-amd64"' \
-            > /github/home/.config/godot/editor_settings-4.3.tres
-          cat /github/home/.config/godot/editor_settings-4.3.tres
 
       - name: Export APK
         run: |
